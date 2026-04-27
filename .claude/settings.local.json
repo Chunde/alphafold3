@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wsl nvidia-smi *)",
+      "Bash(wsl nvcc *)",
+      "Bash(wsl docker *)",
+      "Bash(wsl lsb_release *)",
+      "Bash(wsl free *)",
+      "Bash(wsl df *)",
+      "Bash(wsl bash *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Chunde\\\\AppData\\\\Local\\\\Docker\\\\wsl\" -Recurse 2>$null | Where-Object { $_.Extension -eq \".vhdx\" } | Format-Table FullName, @{N='SizeGB';E={[math]::Round\\($_.Length/1GB,1\\)}})",
+      "PowerShell(Get-ChildItem HKCU:\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Lxss -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.GetValue\\(\"BasePath\"\\) } 2>$null)",
+      "PowerShell(Out-Null *)",
+      "PowerShell(taskkill *)",
+      "PowerShell(New-VHD *)",
+      "PowerShell(wsl --mount E:\\\\AlphaFold\\\\wsl_data.img --bare 2>&1)",
+      "PowerShell(wsl --mount E:\\\\AlphaFold\\\\wsl_data.img 2>&1)",
+      "PowerShell(Get-WindowsOptionalFeature *)",
+      "Bash(wsl *)",
+      "Bash(ls -la /mnt/)",
+      "Read(//mnt/**)",
+      "Read(//mnt/ext4data/**)",
+      "Bash(curl -s http://localhost:8080/api/v1/config)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(curl -s http://localhost:8080/api/v1/jobs)",
+      "Bash(curl -s http://localhost:8080/static/js/app.js)",
+      "Bash(curl -s http://localhost:8080/static/js/submit-panel.js)",
+      "Bash(grep -oP '[A-Z]{1,4}\\\\s*\\\\\\([^\\)]+\\\\\\)' \"D:\\\\GitHub\\\\alphafold3\\\\AlphaFoldServer.mhtml\")",
+      "PowerShell(Get-Content \"D:\\\\GitHub\\\\alphafold3\\\\AlphaFoldServer.mhtml\" | Select-String -Pattern \"ccdCodes|SMILES|ligand|Ion|ATP|HEM|chlorophyll|Magnesium|Zinc|Calcium|Sodium|Potassium|Chloride|Phosphate|Sulfate\" -AllMatches | Select-Object -First 40 | ForEach-Object { $_.Line.Substring\\(0, [Math]::Min\\(300, $_.Line.Length\\)\\) })",
+      "WebFetch(domain:alphafoldserver.com)",
+      "Bash(curl -s http://localhost:8080/static/css/app.css)"
+    ]
+  }
+}
