@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import os
-import shutil
 
 from . import config
 from .job_repo import JobRepo
 
-DOCKER_EXE = config.DOCKER_EXE
-
 
 async def check_docker() -> bool:
-    cmd = [DOCKER_EXE, "ps"]
+    cmd = [config.DOCKER_EXE, "ps"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -27,7 +25,7 @@ async def check_docker() -> bool:
 
 async def check_gpu() -> bool:
     cmd = [
-        DOCKER_EXE, "run", "--rm", "--gpus", "all",
+        config.DOCKER_EXE, "run", "--rm", "--gpus", "all",
         config.IMAGE_NAME, "nvidia-smi"
     ]
     try:
@@ -58,13 +56,13 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
 
     samples = job.num_samples if job and job.num_samples else cfg.num_diffusion_samples
     cmd = [
-        DOCKER_EXE, "run", "--gpus", "all", "--rm",
+        config.DOCKER_EXE, "run", "--gpus", "all", "--rm",
         "--name", f"af3_{job_id}",
         "-v", f"{job_dir}:/mnt/job",
         "-v", f"/mnt/dbdata:/mnt/data",
         "-v", f"/mnt/dbdata/af3.bin.zst:/mnt/data/af3.bin.zst",
         config.IMAGE_NAME,
-        "python", "run_alphafold.py",
+        "python", "/app/alphafold/run_alphafold.py",
         "--json_path=/mnt/job/input.json",
         "--model_dir=/mnt/data",
         "--db_dir=/mnt/data/public_databases",
@@ -75,6 +73,13 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
         "--jax_compilation_cache_dir=/tmp/jax_cache",
     ]
 
+    # Write runner log for debugging
+    runner_log_path = os.path.join(job_dir, "runner.log")
+    with open(runner_log_path, "w") as f:
+        f.write(f"=== AlphaFold3 Runner ===\n")
+        f.write(f"Started: {datetime.datetime.now().isoformat()}\n")
+        f.write(f"Command: {' '.join(cmd)}\n\n")
+
     repo.update(job_id, status="running")
     await repo.save()
 
@@ -82,6 +87,9 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
+        with open(runner_log_path, "a") as f:
+            f.write(f"Subprocess created, PID: {proc.pid}\n")
+
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=172800
         )
@@ -90,6 +98,10 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
         with open(log_path, "wb") as f:
             f.write(stdout or b"")
             f.write(stderr or b"")
+
+        with open(runner_log_path, "a") as f:
+            f.write(f"Finished: {datetime.datetime.now().isoformat()}\n")
+            f.write(f"Return code: {proc.returncode}\n")
 
         if proc.returncode == 0:
             repo.update(job_id, status="completed", has_results=True)
@@ -101,6 +113,8 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
             )
         await repo.save()
     except asyncio.TimeoutError:
+        with open(runner_log_path, "a") as f:
+            f.write(f"Timeout at: {datetime.datetime.now().isoformat()}\n")
         try:
             await _stop_container(job_id)
         except Exception:
@@ -108,12 +122,14 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
         repo.update(job_id, status="failed", error_message="Timeout (48 hours)")
         await repo.save()
     except Exception as e:
-        repo.update(job_id, status="failed", error_message=str(e))
+        with open(runner_log_path, "a") as f:
+            f.write(f"Exception: {type(e).__name__}: {e}\n")
+        repo.update(job_id, status="failed", error_message=f"{type(e).__name__}: {e}")
         await repo.save()
 
 
 async def _stop_container(job_id: str):
-    cmd = [DOCKER_EXE, "stop", f"af3_{job_id}"]
+    cmd = [config.DOCKER_EXE, "stop", f"af3_{job_id}"]
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -136,7 +152,7 @@ async def get_logs(job_id: str) -> str:
         with open(log_path, "r", errors="replace") as f:
             return f.read()
     # Try docker logs
-    cmd = [DOCKER_EXE, "logs", f"af3_{job_id}"]
+    cmd = [config.DOCKER_EXE, "logs", f"af3_{job_id}"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE

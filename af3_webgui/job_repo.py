@@ -67,12 +67,13 @@ class JobRepo:
 
     def update(self, job_id: str, **kwargs):
         job = self._jobs[job_id]
+        if "status" in kwargs and kwargs["status"] != job.status:
+            new_status = kwargs["status"]
+            if new_status == "running":
+                kwargs.setdefault("started_at", datetime.datetime.now().isoformat())
+            elif new_status in ("completed", "failed", "cancelled"):
+                kwargs.setdefault("finished_at", datetime.datetime.now().isoformat())
         for k, v in kwargs.items():
-            if k == "status" and v != job.status:
-                if v == "running":
-                    kwargs.setdefault("started_at", datetime.datetime.now().isoformat())
-                elif v in ("completed", "failed", "cancelled"):
-                    kwargs.setdefault("finished_at", datetime.datetime.now().isoformat())
             setattr(job, k, v)
         self._jobs[job_id] = job
 
@@ -86,5 +87,8 @@ class JobRepo:
                 return j
         return None
 
-    def get_pending(self) -> list[JobRecord]:
-        return [j for j in self._jobs.values() if j.status == "pending"]
+    def get_pending(self) -> JobRecord | None:
+        for j in self._jobs.values():
+            if j.status == "pending":
+                return j
+        return None

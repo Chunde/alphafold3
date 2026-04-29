@@ -29,7 +29,29 @@
       "Bash(grep -oP '[A-Z]{1,4}\\\\s*\\\\\\([^\\)]+\\\\\\)' \"D:\\\\GitHub\\\\alphafold3\\\\AlphaFoldServer.mhtml\")",
       "PowerShell(Get-Content \"D:\\\\GitHub\\\\alphafold3\\\\AlphaFoldServer.mhtml\" | Select-String -Pattern \"ccdCodes|SMILES|ligand|Ion|ATP|HEM|chlorophyll|Magnesium|Zinc|Calcium|Sodium|Potassium|Chloride|Phosphate|Sulfate\" -AllMatches | Select-Object -First 40 | ForEach-Object { $_.Line.Substring\\(0, [Math]::Min\\(300, $_.Line.Length\\)\\) })",
       "WebFetch(domain:alphafoldserver.com)",
-      "Bash(curl -s http://localhost:8080/static/css/app.css)"
+      "Bash(curl -s http://localhost:8080/static/css/app.css)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps --format \"{{.Names}} {{.Status}}\")",
+      "PowerShell(docker info *)",
+      "Bash(docker --version)",
+      "Bash(python3 *)",
+      "Bash(uv run *)",
+      "Bash(pkill -f \"uvicorn af3_webgui\")",
+      "Bash(PYTHONPATH=/mnt/d/GitHub/alphafold3/src nohup uv run uvicorn af3_webgui.main:app --host 0.0.0.0 --port 8080)",
+      "Bash(echo \"Server PID: $!\")",
+      "Read(//tmp/**)",
+      "Bash(wsl.exe *)",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c '\"$\\(wslpath \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\"\\)\" ps 2>&1')",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c '\"$\\(wslpath \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\"\\)\" --version 2>&1')",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"pkill -f 'uvicorn af3_webgui' 2>/dev/null; sleep 2; cd /mnt/d/GitHub/alphafold3 && PYTHONPATH=/mnt/d/GitHub/alphafold3/src nohup python3 -m uvicorn af3_webgui.main:app --host 0.0.0.0 --port 8080 > /tmp/af3_server.log 2>&1 & sleep 4; head -30 /tmp/af3_server.log\")",
+      "PowerShell(grep *)",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"ps aux | grep uvicorn\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cd /mnt/d/GitHub/alphafold3 && PYTHONPATH=/mnt/d/GitHub/alphafold3/src nohup python3 -m uvicorn af3_webgui.main:app --host 0.0.0.0 --port 8080 > /tmp/af3_server.log 2>&1 & sleep 5; head -20 /tmp/af3_server.log\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /tmp/af3_server.log\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c '\"/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe\" logs --tail 20 d3ac8912bc71 2>&1')",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"kill 4283 2>/dev/null; sleep 2; ps aux | grep uvicorn | grep -v grep || echo 'NO_UVICORN'\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /mnt/d/GitHub/alphafold3/af3_webgui/jobs/jobs.json 2>/dev/null || echo 'NO_JOBS_FILE'\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"ls -la /mnt/d/GitHub/alphafold3/af3_webgui/jobs/f2d0791d756e/ 2>&1\")",
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /mnt/d/GitHub/alphafold3/af3_webgui/jobs/f2d0791d756e/runner.log\")"
     ]
   }
 }
