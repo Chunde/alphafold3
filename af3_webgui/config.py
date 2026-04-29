@@ -8,12 +8,12 @@
 import pathlib
 from pydantic import BaseModel
 
-# Paths
+# Paths — use Windows paths for Docker Desktop volume mounts
 HOME = pathlib.Path.home()
-MODEL_PATH = pathlib.Path("/mnt/ext4data/af3.bin.zst")
-DB_DIR = "/mnt/dbdata/public_databases"
+MODEL_DIR = "E:\\AlphaFold\\model"
+DB_DIR = "E:\\AlphaFold\\public_databases"
 JOBS_DIR = pathlib.Path(__file__).resolve().parent / "jobs"
-DOCKER_EXE = "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe"
+DOCKER_EXE = "docker"
 IMAGE_NAME = "alphafold3"
 
 
@@ -21,8 +21,8 @@ class RuntimeConfig(BaseModel):
     num_recycles: int = 10
     num_diffusion_samples: int = 5
     flash_attention: str = "triton"
-    model_dir: str = "/mnt/data"
-    db_dir: str = "/mnt/data/public_databases"
+    model_dir: str = "/root/models"
+    db_dir: str = "/root/public_databases"
     docker_available: bool = False
     gpu_available: bool = False
 
@@ -38,5 +38,5 @@ def get_db_dir() -> str:
     return DB_DIR
 
 
-def get_model_path() -> str:
-    return str(MODEL_PATH)
+def get_model_dir() -> str:
+    return MODEL_DIR

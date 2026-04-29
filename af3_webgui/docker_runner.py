@@ -6,13 +6,40 @@ import asyncio
 import datetime
 import json
 import os
+import shutil
 
 from . import config
 from .job_repo import JobRepo
 
 
+def _find_docker() -> str:
+    """Find the docker executable. Prefers the Windows docker.exe for path translation."""
+    # When running under WSL2, the Linux 'docker' can't connect to the daemon.
+    # Use the Windows docker.exe instead, which is accessible via WSL interop.
+    windows_docker = "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe"
+    if os.path.exists(windows_docker):
+        return windows_docker
+    # Fall back to PATH
+    docker = shutil.which("docker")
+    if docker:
+        return docker
+    return "docker"
+
+
+DOCKER_EXE = _find_docker()
+
+
+def _to_windows_path(wsl_path: str) -> str:
+    """Convert a WSL2 /mnt/ path to a Windows path for Docker Desktop volume mounts."""
+    if wsl_path.startswith("/mnt/"):
+        drive = wsl_path[5].upper()
+        rest = wsl_path[6:].replace("/", "\\")
+        return f"{drive}:{rest}"
+    return wsl_path
+
+
 async def check_docker() -> bool:
-    cmd = [config.DOCKER_EXE, "ps"]
+    cmd = [DOCKER_EXE, "ps"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -25,7 +52,7 @@ async def check_docker() -> bool:
 
 async def check_gpu() -> bool:
     cmd = [
-        config.DOCKER_EXE, "run", "--rm", "--gpus", "all",
+        DOCKER_EXE, "run", "--rm", "--gpus", "all",
         config.IMAGE_NAME, "nvidia-smi"
     ]
     try:
@@ -54,18 +81,23 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
     job = repo.get(job_id)
     cfg = config.get_config()
 
+    # Convert to Windows paths for Docker Desktop volume mounts
+    docker_job_dir = _to_windows_path(job_dir)
+    docker_model_dir = str(config.MODEL_DIR)  # Already Windows path
+    docker_db_dir = str(config.DB_DIR)        # Already Windows path
+
     samples = job.num_samples if job and job.num_samples else cfg.num_diffusion_samples
     cmd = [
-        config.DOCKER_EXE, "run", "--gpus", "all", "--rm",
+        DOCKER_EXE, "run", "--gpus", "all", "--rm",
         "--name", f"af3_{job_id}",
-        "-v", f"{job_dir}:/mnt/job",
-        "-v", f"/mnt/dbdata:/mnt/data",
-        "-v", f"/mnt/dbdata/af3.bin.zst:/mnt/data/af3.bin.zst",
+        "-v", f"{docker_job_dir}:/mnt/job",
+        "-v", f"{docker_model_dir}:/root/models",
+        "-v", f"{docker_db_dir}:/root/public_databases",
         config.IMAGE_NAME,
         "python", "/app/alphafold/run_alphafold.py",
         "--json_path=/mnt/job/input.json",
-        "--model_dir=/mnt/data",
-        "--db_dir=/mnt/data/public_databases",
+        "--model_dir=/root/models",
+        "--db_dir=/root/public_databases",
         "--output_dir=/mnt/job/output",
         f"--num_recycles={cfg.num_recycles}",
         f"--num_diffusion_samples={samples}",
@@ -129,7 +161,7 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
 
 
 async def _stop_container(job_id: str):
-    cmd = [config.DOCKER_EXE, "stop", f"af3_{job_id}"]
+    cmd = [DOCKER_EXE, "stop", f"af3_{job_id}"]
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -152,7 +184,7 @@ async def get_logs(job_id: str) -> str:
         with open(log_path, "r", errors="replace") as f:
             return f.read()
     # Try docker logs
-    cmd = [config.DOCKER_EXE, "logs", f"af3_{job_id}"]
+    cmd = [DOCKER_EXE, "logs", f"af3_{job_id}"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
