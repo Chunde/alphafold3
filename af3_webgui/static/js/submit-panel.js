@@ -1,5 +1,136 @@
 const SubmitPanel = {
   entityCounter: 0,
+  _modifications: {},  // { entityId: [{code, position}, ...] }
+
+  // ── Modifications ──
+  _getMods(entityId) {
+    if (!this._modifications[entityId]) this._modifications[entityId] = [];
+    return this._modifications[entityId];
+  },
+
+  _openModsModal(entityId, entityType) {
+    const mods = this._getMods(entityId);
+    const modList = entityType === "rna" ? this.RNA_MODIFICATIONS : this.DNA_MODIFICATIONS;
+
+    // Build modal
+    let overlay = document.getElementById("modsOverlay");
+    if (overlay) overlay.remove();
+    overlay = document.createElement("div");
+    overlay.id = "modsOverlay";
+    overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;";
+    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+
+    const renderModRows = () => {
+      let rows = mods.map((m, i) => `
+        <div class="d-flex align-items-center gap-2 mb-2 mod-row-item">
+          <span style="font-size:13px;color:var(--text-secondary);">Position</span>
+          <input class="form-control mod-pos-input" type="number" value="${m.position}" min="1"
+            style="width:80px;font-size:13px;padding:4px 8px;"
+            data-idx="${i}">
+          <select class="form-select mod-type-select" style="width:260px;font-size:13px;padding:4px 8px;" data-idx="${i}">
+            ${modList.map(opt => `<option value="${opt.code}" ${opt.code === m.code ? "selected" : ""}>${opt.name} [${opt.code}]</option>`).join("")}
+          </select>
+          <button class="btn btn-sm remove-mod-btn" style="border:none;background:none;color:var(--text-secondary);font-size:16px;padding:0 4px;" data-idx="${i}">&times;</button>
+        </div>`).join("");
+
+      if (!mods.length) {
+        rows = `<div class="text-muted text-center py-3" style="font-size:13px;">No modifications added</div>`;
+      }
+      return rows;
+    };
+
+    overlay.innerHTML = `
+      <div class="card" style="width:540px;max-height:80vh;overflow-y:auto;border-radius:12px;" onclick="event.stopPropagation()">
+        <div class="card-header d-flex justify-content-between align-items-center" style="border-bottom:1px solid var(--border);padding:16px 20px;">
+          <h6 style="margin:0;font-weight:600;">${entityType.toUpperCase()} Modifications</h6>
+          <button id="modsCloseBtn" style="border:none;background:none;font-size:18px;color:var(--text-secondary);cursor:pointer;padding:0;">&times;</button>
+        </div>
+        <div class="card-body" style="padding:16px 20px;">
+          <div id="modsRows">${renderModRows()}</div>
+          <button class="btn btn-outline-secondary btn-sm mt-2" id="addModBtn">
+            + Add modification
+          </button>
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2" style="border-top:1px solid var(--border);padding:12px 20px;background:transparent;">
+          <button class="btn btn-outline-secondary btn-sm" id="modsCancelBtn">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="modsSaveBtn">Save</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    // Close buttons
+    overlay.querySelector("#modsCloseBtn").addEventListener("click", () => overlay.remove());
+    overlay.querySelector("#modsCancelBtn").addEventListener("click", () => overlay.remove());
+
+    // Add modification
+    overlay.querySelector("#addModBtn").addEventListener("click", () => {
+      mods.push({ code: modList[0].code, position: 1 });
+      this._refreshModsRows(overlay, mods, modList);
+    });
+
+    // Event delegation for remove buttons
+    overlay.querySelector("#modsRows").addEventListener("click", e => {
+      const btn = e.target.closest(".remove-mod-btn");
+      if (!btn) return;
+      const idx = parseInt(btn.dataset.idx);
+      mods.splice(idx, 1);
+      this._refreshModsRows(overlay, mods, modList);
+    });
+
+    // Event delegation for input/select changes
+    overlay.querySelector("#modsRows").addEventListener("change", e => {
+      const idx = parseInt(e.target.dataset.idx);
+      if (isNaN(idx) || !mods[idx]) return;
+      if (e.target.classList.contains("mod-pos-input")) {
+        mods[idx].position = parseInt(e.target.value) || 1;
+      } else if (e.target.classList.contains("mod-type-select")) {
+        mods[idx].code = e.target.value;
+      }
+    });
+
+    // Save
+    overlay.querySelector("#modsSaveBtn").addEventListener("click", () => {
+      // Collect current state
+      const posInputs = overlay.querySelectorAll(".mod-pos-input");
+      const typeSelects = overlay.querySelectorAll(".mod-type-select");
+      const newMods = [];
+      posInputs.forEach((pi, i) => {
+        const pos = parseInt(pi.value);
+        const code = typeSelects[i] ? typeSelects[i].value : modList[0].code;
+        if (pos > 0) newMods.push({ code, position: pos });
+      });
+      this._modifications[entityId] = newMods;
+      this._updateModsBadge(entityId);
+      overlay.remove();
+    });
+  },
+
+  _refreshModsRows(overlay, mods, modList) {
+    const container = overlay.querySelector("#modsRows");
+    if (!mods.length) {
+      container.innerHTML = `<div class="text-muted text-center py-3" style="font-size:13px;">No modifications added</div>`;
+    } else {
+      container.innerHTML = mods.map((m, i) => `
+        <div class="d-flex align-items-center gap-2 mb-2 mod-row-item">
+          <span style="font-size:13px;color:var(--text-secondary);">Position</span>
+          <input class="form-control mod-pos-input" type="number" value="${m.position}" min="1"
+            style="width:80px;font-size:13px;padding:4px 8px;" data-idx="${i}">
+          <select class="form-select mod-type-select" style="width:260px;font-size:13px;padding:4px 8px;" data-idx="${i}">
+            ${modList.map(opt => `<option value="${opt.code}" ${opt.code === m.code ? "selected" : ""}>${opt.name} [${opt.code}]</option>`).join("")}
+          </select>
+          <button class="btn btn-sm remove-mod-btn" style="border:none;background:none;color:var(--text-secondary);font-size:16px;padding:0 4px;" data-idx="${i}">&times;</button>
+        </div>`).join("");
+    }
+  },
+
+  _updateModsBadge(entityId) {
+    const badge = document.querySelector(`.mods-badge[data-entity-id="${entityId}"]`);
+    if (!badge) return;
+    const mods = this._getMods(entityId);
+    badge.textContent = mods.length ? `${mods.length} mod` : "";
+    badge.style.display = mods.length ? "inline" : "none";
+  },
 
   // ── Ligands (commonly used biologically relevant molecules) ──
   LIGANDS: [
@@ -119,6 +250,38 @@ const SubmitPanel = {
     { code: "IMD", name: "Imidazole" },
   ],
 
+  // ── RNA modifications (CCD codes) ──
+  RNA_MODIFICATIONS: [
+    { code: "6MZ", name: "N6-methyladenosine (m6A)" },
+    { code: "5MC", name: "5-methylcytidine (m5C)" },
+    { code: "PSU", name: "Pseudouridine (Ψ)" },
+    { code: "2MG", name: "N2-methylguanosine (m2G)" },
+    { code: "5MU", name: "5-methyluridine (m5U)" },
+    { code: "7MG", name: "7-methylguanosine (m7G)" },
+    { code: "O2C", name: "2'-O-methylcytidine (Cm)" },
+    { code: "O2G", name: "2'-O-methylguanosine (Gm)" },
+    { code: "O2A", name: "2'-O-methyladenosine (Am)" },
+    { code: "O2U", name: "2'-O-methyluridine (Um)" },
+    { code: "4SU", name: "4-thiouridine (s4U)" },
+    { code: "H2U", name: "Dihydrouridine (D)" },
+    { code: "1MA", name: "N1-methyladenosine (m1A)" },
+    { code: "3MC", name: "N3-methylcytidine (m3C)" },
+    { code: "1MG", name: "N1-methylguanosine (m1G)" },
+    { code: "IU",  name: "Inosine (I)" },
+    { code: "A2M", name: "N2,N2-dimethylguanosine (m2,2G)" },
+    { code: "6IA", name: "N6-isopentenyladenosine (i6A)" },
+    { code: "2MA", name: "2-methyladenosine (m2A)" },
+    { code: "3ME", name: "N3-methyluridine (m3U)" },
+  ],
+
+  // ── DNA modifications (CCD codes) ──
+  DNA_MODIFICATIONS: [
+    { code: "5CM", name: "5-methylcytosine (5mC)" },
+    { code: "5HC", name: "5-hydroxymethylcytosine (5hmC)" },
+    { code: "5FC", name: "5-formylcytosine (5fC)" },
+    { code: "5CA", name: "5-carboxylcytosine (5caC)" },
+  ],
+
   // ── Ions ──
   IONS: [
     { code: "MG", name: "Magnesium (Mg²⁺)" },
@@ -166,6 +329,7 @@ const SubmitPanel = {
   // ── Mount ──
   mount() {
     this.entityCounter = 0;
+    this._modifications = {};
     const el = document.getElementById("panel-submit");
     el.innerHTML = `
       <div class="mb-4">
@@ -267,6 +431,10 @@ const SubmitPanel = {
     const chainId = String.fromCharCode(64 + this.entityCounter);
     const typeClass = type === "protein" ? "protein" : type === "rna" ? "rna" : type === "dna" ? "dna" : type === "ligand" ? "ligand" : "ion";
 
+    const menuBtn = (type === "rna" || type === "dna")
+      ? `<button class="btn btn-sm entity-menu-btn" data-entity-id="${id}" data-entity-type="${type}" title="Modifications" style="border:none;background:none;font-size:18px;line-height:1;padding:0 4px;color:var(--text-secondary);">⋮</button>`
+      : "";
+
     let body = "";
     if (type === "protein" || type === "dna" || type === "rna") {
       const bases = type === "rna" ? "A/U/G/C" : type === "dna" ? "A/T/G/C" : "";
@@ -327,12 +495,14 @@ const SubmitPanel = {
     card.innerHTML = `
       <div class="entity-header-row">
         <span class="entity-type-badge ${typeClass}">${labels[type]}</span>
+        <span class="mods-badge" data-entity-id="${id}" style="display:none;font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:8px;margin-left:4px;"></span>
         <input class="chain-id-input ${id}-chainId" value="${chainId}" maxlength="4" title="Chain ID">
         <div class="flex-fill"></div>
         <div class="copies-group">
           <label>Copies</label>
           <input class="${id}-copies" type="number" value="1" min="1" max="99">
         </div>
+        ${menuBtn}
         <button class="btn btn-sm remove-entity" title="Remove entity" style="border:none;background:none;font-size:18px;line-height:1;padding:0 4px;">&times;</button>
       </div>
       ${body}`;
@@ -342,6 +512,13 @@ const SubmitPanel = {
       card.remove();
       this.updateBondedSection();
     });
+
+    const menuBtnEl = card.querySelector(".entity-menu-btn");
+    if (menuBtnEl) {
+      menuBtnEl.addEventListener("click", () => {
+        this._openModsModal(id, type);
+      });
+    }
 
     // Sequence formatting for protein/DNA/RNA
     if (type === "protein" || type === "dna" || type === "rna") {
@@ -480,8 +657,12 @@ const SubmitPanel = {
           entity.protein = { id: chainId, sequence: value };
         } else if (type === "rna") {
           entity.rna = { id: chainId, sequence: value };
+          const rnaMods = this._getMods(card.id);
+          if (rnaMods.length) entity.rna.modifications = rnaMods.map(m => ({ modificationType: m.code, basePosition: m.position }));
         } else if (type === "dna") {
           entity.dna = { id: chainId, sequence: value };
+          const dnaMods = this._getMods(card.id);
+          if (dnaMods.length) entity.dna.modifications = dnaMods.map(m => ({ modificationType: m.code, basePosition: m.position }));
         } else if (type === "ligand" || type === "ion") {
           entity.ligand = { id: chainId, ccdCodes: [value] };
         }

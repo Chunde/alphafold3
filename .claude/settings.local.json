@@ -51,7 +51,10 @@
       "PowerShell(wsl.exe -d Ubuntu -e bash -c \"kill 4283 2>/dev/null; sleep 2; ps aux | grep uvicorn | grep -v grep || echo 'NO_UVICORN'\")",
       "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /mnt/d/GitHub/alphafold3/af3_webgui/jobs/jobs.json 2>/dev/null || echo 'NO_JOBS_FILE'\")",
       "PowerShell(wsl.exe -d Ubuntu -e bash -c \"ls -la /mnt/d/GitHub/alphafold3/af3_webgui/jobs/f2d0791d756e/ 2>&1\")",
-      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /mnt/d/GitHub/alphafold3/af3_webgui/jobs/f2d0791d756e/runner.log\")"
+      "PowerShell(wsl.exe -d Ubuntu -e bash -c \"cat /mnt/d/GitHub/alphafold3/af3_webgui/jobs/f2d0791d756e/runner.log\")",
+      "Bash(cmd.exe *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" images --format \"table {{.Repository}}\\\\t{{.Tag}}\\\\t{{.Size}}\\\\t{{.CreatedAt}}\" 2>&1)"
     ]
   }
 }
