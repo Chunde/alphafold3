@@ -9,14 +9,27 @@ import pathlib
 from .docker_runner import get_job_dir
 
 
+def _find_output_root(output_dir: pathlib.Path) -> pathlib.Path:
+    """AF3 writes output inside a job‑name subdirectory.  Find it."""
+    subs = [d for d in output_dir.iterdir() if d.is_dir()]
+    # The job‑name dir is the only non‑seed subdirectory
+    for sub in subs:
+        if list(sub.glob("seed-*_sample-*")) or list(sub.glob("*_model.cif")):
+            return sub
+    return output_dir
+
+
 def parse_job_results(job_id: str) -> dict:
     output_dir = pathlib.Path(get_job_dir(job_id)) / "output"
 
     if not output_dir.exists():
         return {"samples": [], "top": None, "has_results": False}
 
+    # AF3 nests output under a job‑name directory
+    root = _find_output_root(output_dir)
+
     samples = []
-    for seed_dir in sorted(output_dir.glob("seed-*_sample-*")):
+    for seed_dir in sorted(root.glob("seed-*_sample-*")):
         parts = seed_dir.name.split("_")
         try:
             seed = int(parts[0].split("-")[1])
@@ -48,7 +61,7 @@ def parse_job_results(job_id: str) -> dict:
         samples.append(entry)
 
     top = None
-    for f in output_dir.iterdir():
+    for f in root.iterdir():
         if f.name.endswith("_model.cif") and "seed-" not in f.name:
             top = {"has_cif": True, "cif_name": f.name}
         elif f.name.endswith("_summary_confidences.json") and "seed-" not in f.name:
@@ -63,7 +76,7 @@ def parse_job_results(job_id: str) -> dict:
 
     # Load confidences for top result
     top_conf = None
-    for f in output_dir.iterdir():
+    for f in root.iterdir():
         if f.name.endswith("_confidences.json") and "seed-" not in f.name:
             top_conf = f.name
     if top and top_conf:
@@ -71,7 +84,7 @@ def parse_job_results(job_id: str) -> dict:
         top["confidences_name"] = top_conf
 
     # Find ranking scores
-    ranking_csv = list(output_dir.glob("*_ranking_scores.csv"))
+    ranking_csv = list(root.glob("*_ranking_scores.csv"))
     ranking_path = str(ranking_csv[0]) if ranking_csv else None
 
     return {
@@ -85,9 +98,10 @@ def parse_job_results(job_id: str) -> dict:
 def get_result_file_path(job_id: str, seed: int, sample: int, file_type: str) -> str | None:
     """Get path to a specific result file. file_type: 'cif' or 'confidences'."""
     output_dir = pathlib.Path(get_job_dir(job_id)) / "output"
+    root = _find_output_root(output_dir)
 
     sample_dir_name = f"seed-{seed}_sample-{sample}"
-    sample_dir = output_dir / sample_dir_name
+    sample_dir = root / sample_dir_name
 
     if not sample_dir.exists():
         return None
@@ -111,16 +125,18 @@ def get_top_result_path(job_id: str, file_type: str) -> str | None:
     if not output_dir.exists():
         return None
 
+    root = _find_output_root(output_dir)
+
     if file_type == "cif":
-        for f in output_dir.iterdir():
+        for f in root.iterdir():
             if f.name.endswith("_model.cif") and "seed-" not in f.name:
                 return str(f)
     elif file_type == "confidences":
-        for f in output_dir.iterdir():
+        for f in root.iterdir():
             if f.name.endswith("_confidences.json") and "seed-" not in f.name:
                 return str(f)
     elif file_type == "summary":
-        for f in output_dir.iterdir():
+        for f in root.iterdir():
             if f.name.endswith("_summary_confidences.json") and "seed-" not in f.name:
                 return str(f)
     return None
