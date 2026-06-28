@@ -1,2 +1,3 @@
 *.pyc
 af3_webgui/jobs/*
+out/*

@@ -5,14 +5,28 @@
 
 """Web GUI configuration for AlphaFold3."""
 
+import os
 import pathlib
 from pydantic import BaseModel
 
-# Paths — use Windows paths for Docker Desktop volume mounts
+# ── Data paths ──────────────────────────────────────────────────────────────
+# The model parameters and genetic databases reside on an ext4 VHDX
+# mounted inside WSL at /mnt/wsl/ext4data.
+#
+# When Docker Desktop WSL integration is enabled, the Linux ``docker``
+# CLI can bind‑mount WSL paths directly — no translation needed.
+# docker_runner.py auto‑detects whether the Linux or Windows Docker CLI
+# is available and adjusts paths accordingly.
+#
+# Override with:  AF3_DATA_DIR=/other/path
+
+_WSL_EXT4DATA = os.getenv("AF3_DATA_DIR", "/mnt/wsl/ext4data")
+MODEL_DIR = _WSL_EXT4DATA                           # af3.bin.zst lives here
+DB_DIR   = os.path.join(_WSL_EXT4DATA, "public_databases")
+
 HOME = pathlib.Path.home()
-MODEL_DIR = "E:\\AlphaFold\\model"
-DB_DIR = "E:\\AlphaFold\\public_databases"
-JOBS_DIR = pathlib.Path(__file__).resolve().parent / "jobs"
+# Jobs live on the VHDX so the container can access them (see docker_runner.py)
+JOBS_DIR = (pathlib.Path(_WSL_EXT4DATA) / ".af3_jobs").as_posix()
 DOCKER_EXE = "docker"
 IMAGE_NAME = "alphafold3"
 

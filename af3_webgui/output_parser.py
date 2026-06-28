@@ -6,10 +6,11 @@ import json
 import os
 import pathlib
 
+from .docker_runner import get_job_dir
+
 
 def parse_job_results(job_id: str) -> dict:
-    jobs_root = pathlib.Path(__file__).resolve().parent / "jobs"
-    output_dir = jobs_root / job_id / "output"
+    output_dir = pathlib.Path(get_job_dir(job_id)) / "output"
 
     if not output_dir.exists():
         return {"samples": [], "top": None, "has_results": False}
@@ -83,8 +84,7 @@ def parse_job_results(job_id: str) -> dict:
 
 def get_result_file_path(job_id: str, seed: int, sample: int, file_type: str) -> str | None:
     """Get path to a specific result file. file_type: 'cif' or 'confidences'."""
-    jobs_root = pathlib.Path(__file__).resolve().parent / "jobs"
-    output_dir = jobs_root / job_id / "output"
+    output_dir = pathlib.Path(get_job_dir(job_id)) / "output"
 
     sample_dir_name = f"seed-{seed}_sample-{sample}"
     sample_dir = output_dir / sample_dir_name
@@ -106,8 +106,7 @@ def get_result_file_path(job_id: str, seed: int, sample: int, file_type: str) ->
 
 def get_top_result_path(job_id: str, file_type: str) -> str | None:
     """Get path to the top-ranked result file."""
-    jobs_root = pathlib.Path(__file__).resolve().parent / "jobs"
-    output_dir = jobs_root / job_id / "output"
+    output_dir = pathlib.Path(get_job_dir(job_id)) / "output"
 
     if not output_dir.exists():
         return None
