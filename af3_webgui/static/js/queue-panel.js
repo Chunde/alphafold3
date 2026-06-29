@@ -1,22 +1,73 @@
 const QueuePanel = {
   refreshTimer: null,
+  _showArchived: false,
 
   mount() {
     const el = document.getElementById("panel-queue");
     el.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Job Queue</h5>
-        <button class="btn btn-outline-secondary btn-sm" id="refreshQueueBtn">
-          <i class="bi bi-arrow-clockwise"></i> Refresh
-        </button>
+        <div class="d-flex align-items-center gap-3">
+          <h5 class="mb-0">Job Queue</h5>
+          <div class="btn-group btn-group-sm" id="queueViewToggle">
+            <button class="btn btn-outline-secondary active" data-view="active">Active</button>
+            <button class="btn btn-outline-secondary" data-view="archived">
+              <i class="bi bi-archive"></i> Archived
+            </button>
+          </div>
+        </div>
+        <div class="d-flex gap-2" id="queueActions">
+          <button class="btn btn-outline-danger btn-sm queue-action-active" id="cancelAllBtn" title="Cancel all pending & running jobs">
+            <i class="bi bi-stop-circle"></i> Cancel All
+          </button>
+          <button class="btn btn-outline-secondary btn-sm queue-action-active" id="archiveCompletedBtn" title="Move completed, failed & cancelled jobs to archive">
+            <i class="bi bi-archive"></i> Archive Completed
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" id="refreshQueueBtn">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+        </div>
       </div>
       <div id="queueTableWrap">
         <div class="text-center py-5 text-muted">Loading...</div>
       </div>`;
 
     document.getElementById("refreshQueueBtn").addEventListener("click", () => this.load());
+    document.getElementById("cancelAllBtn").addEventListener("click", () => this._cancelAll());
+    document.getElementById("archiveCompletedBtn").addEventListener("click", () => this._archiveCompleted());
+
+    document.querySelectorAll("#queueViewToggle button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#queueViewToggle button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        this._showArchived = btn.dataset.view === "archived";
+        // Toggle action buttons visibility
+        document.querySelectorAll(".queue-action-active").forEach(b => {
+          b.style.display = this._showArchived ? "none" : "";
+        });
+        this.load();
+      });
+    });
+
     this.load();
     this.startAutoRefresh();
+  },
+
+  async _cancelAll() {
+    if (!confirm("Cancel all pending and running jobs?")) return;
+    try {
+      const res = await API.cancelAllJobs();
+      alert(`Cancelled ${res.cancelled} job(s).`);
+      this.load();
+    } catch (e) { alert("Failed: " + e.message); }
+  },
+
+  async _archiveCompleted() {
+    if (!confirm("Archive all completed, failed, and cancelled jobs?")) return;
+    try {
+      const res = await API.archiveCompleted();
+      alert(`Archived ${res.archived} job(s).`);
+      this.load();
+    } catch (e) { alert("Failed: " + e.message); }
   },
 
   startAutoRefresh() {
@@ -33,7 +84,7 @@ const QueuePanel = {
 
   async load() {
     try {
-      const jobs = await API.listJobs();
+      const jobs = this._showArchived ? await API.listArchived() : await API.listJobs();
       this.render(jobs);
     } catch (e) {
       document.getElementById("queueTableWrap").innerHTML =
@@ -43,8 +94,11 @@ const QueuePanel = {
 
   render(jobs) {
     if (!jobs.length) {
+      const msg = this._showArchived
+        ? "No archived jobs."
+        : `No jobs yet. <a href="#submit">Create one</a>.`;
       document.getElementById("queueTableWrap").innerHTML =
-        `<div class="text-center py-5 text-muted">No jobs yet. <a href="#submit">Create one</a>.</div>`;
+        `<div class="text-center py-5 text-muted">${msg}</div>`;
       return;
     }
 
@@ -54,6 +108,34 @@ const QueuePanel = {
         failed: "bg-danger", cancelled: "bg-warning text-dark",
       }[j.status] || "bg-secondary";
 
+      let actionBtn = "";
+      if (this._showArchived) {
+        // Archived view: show restore + view results
+        actionBtn = `<button class="btn btn-outline-secondary btn-sm restore-btn" data-id="${j.id}">
+                       <i class="bi bi-box-arrow-up"></i> Restore
+                     </button>`;
+        if (j.status === "completed") {
+          actionBtn += ` <button class="btn btn-outline-primary btn-sm view-results-btn" data-id="${j.id}">View</button>`;
+        }
+      } else {
+        // Active view
+        if (j.status === "running" || j.status === "pending") {
+          actionBtn = `<button class="btn btn-outline-danger btn-sm cancel-job-btn" data-id="${j.id}">Cancel</button>`;
+        } else if (j.status === "completed") {
+          actionBtn = `<button class="btn btn-outline-primary btn-sm view-results-btn" data-id="${j.id}">View Results</button>
+                       <button class="btn btn-outline-secondary btn-sm archive-btn" data-id="${j.id}" title="Archive this job">
+                         <i class="bi bi-archive"></i>
+                       </button>`;
+        } else {
+          actionBtn = `<button class="btn btn-outline-secondary btn-sm archive-btn" data-id="${j.id}" title="Archive this job">
+                         <i class="bi bi-archive"></i>
+                       </button>`;
+          if (j.status === "failed") {
+            actionBtn += ` <button class="btn btn-outline-secondary btn-sm view-logs-btn" data-id="${j.id}">Logs</button>`;
+          }
+        }
+      }
+
       return `
         <tr>
           <td><code>${j.id}</code></td>
@@ -62,15 +144,7 @@ const QueuePanel = {
           <td><small>${App.formatDate(j.created_at)}</small></td>
           <td>${j.num_seeds}</td>
           <td>${j.num_samples}</td>
-          <td>
-            ${j.status === "running" || j.status === "pending"
-              ? `<button class="btn btn-outline-danger btn-sm cancel-job-btn" data-id="${j.id}">Cancel</button>`
-              : j.status === "completed"
-                ? `<button class="btn btn-outline-primary btn-sm view-results-btn" data-id="${j.id}">View Results</button>`
-                : j.status === "failed"
-                  ? `<button class="btn btn-outline-secondary btn-sm view-logs-btn" data-id="${j.id}">Logs</button>`
-                  : ""}
-          </td>
+          <td style="white-space:nowrap">${actionBtn}</td>
         </tr>`;
     }).join("");
 
@@ -82,7 +156,7 @@ const QueuePanel = {
         <tbody>${rows}</tbody>
       </table>`;
 
-    // Bind buttons
+    // Bind active-view buttons
     document.querySelectorAll(".view-results-btn").forEach(btn => {
       btn.addEventListener("click", () => App.showResults(btn.dataset.id));
     });
@@ -99,6 +173,18 @@ const QueuePanel = {
           const w = window.open("", "_blank", "width=800,height=600");
           w.document.write(`<pre style="font-size:12px;padding:1rem;">${this.esc(logs)}</pre>`);
         } catch (e) { alert(e.message); }
+      });
+    });
+    document.querySelectorAll(".archive-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try { await API.archiveJob(btn.dataset.id); this.load(); } catch (e) { alert(e.message); }
+      });
+    });
+
+    // Bind archived-view buttons
+    document.querySelectorAll(".restore-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try { await API.unarchiveJob(btn.dataset.id); this.load(); } catch (e) { alert(e.message); }
       });
     });
   },

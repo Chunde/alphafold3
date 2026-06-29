@@ -30,7 +30,13 @@ const API = {
   getJob(id)        { return this.get(`/api/v1/jobs/${id}`); },
   cancelJob(id)     { return this.post(`/api/v1/jobs/${id}/cancel`); },
   getLogs(id)       { return this.get(`/api/v1/jobs/${id}/logs`); },
-  getResults(id)    { return this.get(`/api/v1/jobs/${id}/results`); },
+  getResults(id)       { return this.get(`/api/v1/jobs/${id}/results`); },
+  cancelAllJobs()        { return this.post("/api/v1/jobs/cancel-all", {}); },
+  clearHistory()         { return this.post("/api/v1/jobs/clear-history", {}); },
+  archiveCompleted()     { return this.post("/api/v1/jobs/archive-completed", {}); },
+  listArchived()         { return this.get("/api/v1/jobs/archived"); },
+  archiveJob(id)         { return this.post(`/api/v1/jobs/${id}/archive`, {}); },
+  unarchiveJob(id)       { return this.post(`/api/v1/jobs/${id}/unarchive`, {}); },
 
   resultUrl(jobId, seed, sample, type) {
     if (type === "top-cif")

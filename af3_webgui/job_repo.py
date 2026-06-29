@@ -24,6 +24,7 @@ class JobRecord(BaseModel):
     error_message: str | None = None
     has_results: bool = False
     result_samples: list[dict] = []
+    archived: bool = False
 
 
 class JobRepo:
@@ -61,8 +62,17 @@ class JobRepo:
         return self._jobs.get(job_id)
 
     def list_all(self) -> list[JobRecord]:
+        """Return non-archived jobs, newest first."""
         return sorted(
-            self._jobs.values(), key=lambda j: j.created_at, reverse=True
+            [j for j in self._jobs.values() if not j.archived],
+            key=lambda j: j.created_at, reverse=True
+        )
+
+    def list_archived(self) -> list[JobRecord]:
+        """Return archived jobs, newest first."""
+        return sorted(
+            [j for j in self._jobs.values() if j.archived],
+            key=lambda j: j.created_at, reverse=True
         )
 
     def update(self, job_id: str, **kwargs):
@@ -92,3 +102,45 @@ class JobRepo:
             if j.status == "pending":
                 return j
         return None
+
+    def get_active(self) -> list[JobRecord]:
+        """Return all pending and running jobs."""
+        return [j for j in self._jobs.values() if j.status in ("pending", "running")]
+
+    def cancel_all_active(self) -> int:
+        """Cancel all pending and running jobs. Returns count."""
+        count = 0
+        now = datetime.datetime.now().isoformat()
+        for j in self._jobs.values():
+            if j.status in ("pending", "running"):
+                j.status = "cancelled"
+                j.finished_at = now
+                count += 1
+        return count
+
+    def clear_history(self) -> int:
+        """Delete all completed, failed, and cancelled jobs. Returns count."""
+        to_delete = [
+            jid for jid, j in self._jobs.items()
+            if j.status in ("completed", "failed", "cancelled")
+        ]
+        for jid in to_delete:
+            del self._jobs[jid]
+        return len(to_delete)
+
+    def archive_completed(self) -> int:
+        """Archive all completed, failed, and cancelled jobs. Returns count."""
+        count = 0
+        for j in self._jobs.values():
+            if j.status in ("completed", "failed", "cancelled") and not j.archived:
+                j.archived = True
+                count += 1
+        return count
+
+    def set_archived(self, job_id: str, archived: bool) -> bool:
+        """Set the archived flag on a job. Returns True if found."""
+        j = self._jobs.get(job_id)
+        if j:
+            j.archived = archived
+            return True
+        return False

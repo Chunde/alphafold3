@@ -135,6 +135,60 @@ async def list_jobs():
     return [j.model_dump() for j in repo.list_all()]
 
 
+@app.post("/api/v1/jobs/cancel-all")
+async def cancel_all_jobs():
+    """Cancel all pending and running jobs."""
+    count = repo.cancel_all_active()
+    await repo.save()
+    # Also kill any running AF3 subprocesses
+    import subprocess
+    try:
+        subprocess.run(["pkill", "-f", "run_alphafold.py"], timeout=10)
+    except Exception:
+        pass
+    return {"cancelled": count}
+
+
+@app.post("/api/v1/jobs/clear-history")
+async def clear_job_history():
+    """Delete all completed, failed, and cancelled jobs."""
+    count = repo.clear_history()
+    await repo.save()
+    return {"cleared": count}
+
+
+@app.post("/api/v1/jobs/archive-completed")
+async def archive_completed_jobs():
+    """Archive all completed, failed, and cancelled jobs."""
+    count = repo.archive_completed()
+    await repo.save()
+    return {"archived": count}
+
+
+@app.get("/api/v1/jobs/archived")
+async def list_archived_jobs():
+    """List archived jobs."""
+    return [j.model_dump() for j in repo.list_archived()]
+
+
+@app.post("/api/v1/jobs/{job_id}/archive")
+async def archive_job(job_id: str):
+    """Archive a single job."""
+    if not repo.set_archived(job_id, True):
+        raise HTTPException(404, "Job not found")
+    await repo.save()
+    return {"status": "archived"}
+
+
+@app.post("/api/v1/jobs/{job_id}/unarchive")
+async def unarchive_job(job_id: str):
+    """Restore a job from the archive."""
+    if not repo.set_archived(job_id, False):
+        raise HTTPException(404, "Job not found")
+    await repo.save()
+    return {"status": "unarchived"}
+
+
 @app.get("/api/v1/jobs/{job_id}")
 async def get_job(job_id: str):
     job = repo.get(job_id)
