@@ -2,3 +2,6 @@
 af3_webgui/jobs/*
 out/*
 .vs/
+
+# Large generated data files
+src/alphafold3/constants/converters/*.pickle
