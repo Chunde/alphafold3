@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, docker_runner, output_parser
+from . import config, dedup, docker_runner, output_parser
 from .job_repo import JobRepo
 
 
@@ -53,6 +53,7 @@ async def _process_queue():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await repo.load()
+    dedup.load_index()
     app.state.background_task = asyncio.create_task(_process_queue())
     # Health checks
     config.get_config().docker_available = await docker_runner.check_docker()
@@ -106,8 +107,6 @@ async def submit_job(body: dict[str, Any]):
     if not sequences:
         raise HTTPException(400, "At least one sequence is required")
 
-    job = repo.create(name=name, num_seeds=len(seeds), num_samples=num_samples)
-
     input_json = {
         "name": name,
         "dialect": "alphafold3",
@@ -120,6 +119,29 @@ async def submit_job(body: dict[str, Any]):
     if "userCCD" in body:
         input_json["userCCD"] = body["userCCD"]
 
+    # ── Deduplication check ────────────────────────────────────────────────
+    fingerprint = dedup.compute_fingerprint(input_json, config.get_config().model_dump())
+    matched_job_id = dedup.lookup(fingerprint)
+    if matched_job_id:
+        matched_job = repo.get(matched_job_id)
+        if matched_job and matched_job.status == "completed" and matched_job.has_results:
+            # Reuse previous results — create a new job entry linked to the old output
+            job = repo.create(name=name, num_seeds=len(seeds), num_samples=num_samples)
+            job_dir = docker_runner.get_job_dir(job.id)
+            os.makedirs(job_dir, exist_ok=True)
+            # Write the input.json for record-keeping
+            input_path = os.path.join(job_dir, "input.json")
+            with open(input_path, "w") as f:
+                json.dump(input_json, f)
+            # Symlink output dir to the cached result
+            dedup.link_output(matched_job_id, job.id)
+            repo.update(job.id, status="completed", has_results=True,
+                        error_message=f"(cached from {matched_job_id})")
+            await repo.save()
+            return job.model_dump()
+
+    # ── Normal submission ──────────────────────────────────────────────────
+    job = repo.create(name=name, num_seeds=len(seeds), num_samples=num_samples)
     job_dir = docker_runner.get_job_dir(job.id)
     os.makedirs(os.path.join(job_dir, "output"), exist_ok=True)
     input_path = os.path.join(job_dir, "input.json")

@@ -13,7 +13,7 @@ import pathlib
 import shutil
 import subprocess
 
-from . import config
+from . import config, dedup
 from .job_repo import JobRepo
 
 
@@ -142,6 +142,12 @@ async def run_job(job_id: str, input_json: dict, repo: JobRepo):
 
         if exit_code == 0:
             repo.update(job_id, status="completed", has_results=True)
+            # Register fingerprint so identical future jobs hit the cache
+            try:
+                fp = dedup.compute_fingerprint(input_json, config.get_config().model_dump())
+                dedup.register(fp, job_id)
+            except Exception:
+                pass
         else:
             repo.update(
                 job_id, status="failed",
