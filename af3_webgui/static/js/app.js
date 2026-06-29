@@ -29,6 +29,28 @@ const App = {
         window.location.hash = hash;
       });
     });
+
+    // Sidebar toggle
+    this._initSidebarToggle();
+  },
+
+  _initSidebarToggle() {
+    const btn = document.getElementById("sidebarToggle");
+    const sidebar = document.getElementById("sidebar");
+    if (!btn || !sidebar) return;
+
+    // Restore saved state
+    const saved = localStorage.getItem("af3-sidebar-collapsed");
+    if (saved === "true") {
+      sidebar.classList.add("collapsed");
+      btn.querySelector("i").className = "bi bi-list-nested";
+    }
+
+    btn.addEventListener("click", () => {
+      const collapsed = sidebar.classList.toggle("collapsed");
+      btn.querySelector("i").className = collapsed ? "bi bi-list-nested" : "bi bi-list";
+      localStorage.setItem("af3-sidebar-collapsed", collapsed);
+    });
   },
 
   updateStatusBadge() {

@@ -70,6 +70,16 @@ body {
   min-height: calc(100vh - 56px);
 }
 
+/* ── Sidebar toggle button ── */
+.sidebar-toggle {
+  background: none; border: none;
+  color: var(--text-secondary); font-size: 22px;
+  padding: 4px 8px; margin-right: 4px; border-radius: 6px;
+  cursor: pointer; line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.sidebar-toggle:hover { color: var(--text-primary); background: rgba(0,0,0,.06); }
+
 .app-sidebar {
   width: 240px; min-width: 240px;
   background: var(--bg-primary);
@@ -78,6 +88,17 @@ body {
   position: sticky; top: 56px;
   height: calc(100vh - 56px);
   overflow-y: auto;
+  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
+}
+
+/* Collapsed state */
+.app-sidebar.collapsed {
+  width: 0; min-width: 0;
+  padding: 16px 0;
+  border-right: none;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sidebar-nav {
